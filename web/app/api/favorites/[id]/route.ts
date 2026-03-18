@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
 
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isApprovedProfile(profile)) {
+    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
   }
 
   const favoriteId = Number(params.id);

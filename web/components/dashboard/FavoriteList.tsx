@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getMallDisplayInfo } from "@/lib/mall";
 
 type AlertType = "target_price" | "price_drop" | "price_change";
 
@@ -18,6 +19,7 @@ function getAlertTypeLabel(type: AlertType) {
 export type DashboardFavoriteItem = {
   favoriteId: number;
   productId: number | null;
+  mall: string | null;
   title: string | null;
   imageUrl: string | null;
   url: string | null;
@@ -39,6 +41,7 @@ type FavoriteCardProps = {
 
 function FavoriteCard({ item }: FavoriteCardProps) {
   const router = useRouter();
+  const mallInfo = getMallDisplayInfo(item.mall);
   const [memo, setMemo] = useState(item.memo ?? "");
   const [alertType, setAlertType] = useState<AlertType>(item.alertType);
   const [targetPrice, setTargetPrice] = useState(
@@ -155,6 +158,12 @@ function FavoriteCard({ item }: FavoriteCardProps) {
     <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${mallInfo.className}`}>
+              {mallInfo.shortLabel}
+            </span>
+            <span className="text-xs text-slate-400">{mallInfo.label}</span>
+          </div>
           <p className="text-base font-medium text-slate-100">{item.title ?? "상품명 없음"}</p>
           <a
             href={item.url ?? "#"}
@@ -274,8 +283,8 @@ export function FavoriteList({ items }: FavoriteListProps) {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">
-        아직 등록된 관심 상품이 없습니다. 왼쪽 폼에서 네이버 스마트스토어 또는
-        네이버플러스 스토어 URL과 알림 조건을 입력해 첫 상품을 등록해보세요.
+        아직 등록된 관심 상품이 없습니다. 왼쪽 폼에서 네이버 스마트스토어,
+        네이버플러스 스토어, 쿠팡 URL과 알림 조건을 입력해 첫 상품을 등록해보세요.
       </div>
     );
   }

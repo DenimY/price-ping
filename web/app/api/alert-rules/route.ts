@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
 
 const ALLOWED_ALERT_TYPES = ["target_price", "price_drop", "price_change"] as const;
 
 type AlertType = (typeof ALLOWED_ALERT_TYPES)[number];
 
 export async function GET() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isApprovedProfile(profile)) {
+    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
   }
 
   const { data, error } = await supabase
@@ -29,13 +30,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isApprovedProfile(profile)) {
+    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
   }
 
   const body = (await request.json()) as {

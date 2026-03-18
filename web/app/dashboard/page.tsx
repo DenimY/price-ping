@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AddProductForm } from "@/components/dashboard/AddProductForm";
 import { FavoriteList, type DashboardFavoriteItem } from "@/components/dashboard/FavoriteList";
-import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
 
 type FavoriteRow = {
   id: number;
@@ -10,6 +10,7 @@ type FavoriteRow = {
   products:
     | {
         id: number;
+        mall: string;
         title: string | null;
         image_url: string | null;
         last_price: number | null;
@@ -17,6 +18,7 @@ type FavoriteRow = {
       }
     | Array<{
         id: number;
+        mall: string;
         title: string | null;
         image_url: string | null;
         last_price: number | null;
@@ -44,20 +46,26 @@ function getFavoriteProduct(favorite: FavoriteRow) {
 }
 
 export default async function DashboardPage() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     redirect("/auth/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("nickname")
-    .eq("id", user.id)
-    .maybeSingle();
+  if (!isApprovedProfile(profile)) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-6">
+        <h2 className="text-xl font-semibold text-amber-200">승인 대기 중입니다</h2>
+        <p className="mt-2 text-sm leading-6 text-amber-100/90">
+          회원가입은 완료되었지만 관리자 승인 전이라 아직 상품 등록과 가격 추적 기능을 사용할 수
+          없습니다. 승인 후 다시 로그인하면 바로 대시보드를 이용할 수 있습니다.
+        </p>
+        <p className="mt-3 text-sm text-slate-300">
+          현재 계정: {(profile?.nickname ?? user.email) || "사용자"}
+        </p>
+      </div>
+    );
+  }
 
   const { data: favorites, error } = await supabase
     .from("favorites")
@@ -68,6 +76,7 @@ export default async function DashboardPage() {
         created_at,
         products (
           id,
+          mall,
           title,
           image_url,
           last_price,
@@ -119,6 +128,7 @@ export default async function DashboardPage() {
     return {
       favoriteId: favorite.id,
       productId: product?.id ?? null,
+      mall: product?.mall ?? null,
       title: product?.title ?? null,
       imageUrl: product?.image_url ?? null,
       url: product?.url ?? null,

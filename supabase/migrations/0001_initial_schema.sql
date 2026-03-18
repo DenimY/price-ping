@@ -49,6 +49,9 @@ create table if not exists public.profiles (
   privacy_consent boolean not null default false,
   privacy_consent_at timestamptz,
   role text not null default 'user' check (role in ('user', 'admin')),
+  approval_status text not null default 'pending' check (approval_status in ('pending', 'approved', 'rejected')),
+  approved_at timestamptz,
+  approved_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

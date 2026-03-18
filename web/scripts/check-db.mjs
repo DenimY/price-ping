@@ -91,6 +91,28 @@ async function main() {
 
   console.log("역할 컬럼 확인 성공: profiles.role 접근이 가능합니다.");
 
+  const { error: approvalError } = await supabase
+    .from("profiles")
+    .select("approval_status", { count: "exact", head: true });
+
+  if (approvalError?.code === "42703") {
+    throw new Error(
+      "DB 연결은 되었지만 profiles.approval_status 컬럼이 없습니다. 최신 0001_initial_schema.sql 기준으로 컬럼을 추가해주세요."
+    );
+  }
+
+  if (approvalError?.code === "42501") {
+    throw new Error(
+      "DB 연결은 되었지만 권한 문제가 있습니다. 테이블 권한 또는 RLS/GRANT 설정을 확인해주세요."
+    );
+  }
+
+  if (approvalError) {
+    throw new Error(`DB 확인 실패: ${approvalError.message}`);
+  }
+
+  console.log("승인 상태 컬럼 확인 성공: profiles.approval_status 접근이 가능합니다.");
+
   const { error: alertRuleError } = await supabase
     .from("alert_rules")
     .select("baseline_price", { count: "exact", head: true });

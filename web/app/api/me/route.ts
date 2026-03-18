@@ -14,7 +14,9 @@ export async function GET() {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, email, full_name, nickname, phone_number, privacy_consent, role, created_at")
+    .select(
+      "id, email, full_name, nickname, phone_number, privacy_consent, role, approval_status, approved_at, created_at"
+    )
     .eq("id", user.id)
     .maybeSingle();
 
@@ -31,6 +33,8 @@ export async function GET() {
       phone_number: user.user_metadata.phone_number ?? null,
       privacy_consent: Boolean(user.user_metadata.privacy_consent),
       role: "user",
+      approval_status: "pending",
+      approved_at: null,
       created_at: user.created_at
     }
   );

@@ -20,3 +20,15 @@ export function getSupabaseBrowserEnv() {
   };
 }
 
+export function getPublicSiteUrl() {
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin;
+  }
+
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+}
+
+export function getAppUrlScheme() {
+  return process.env.NEXT_PUBLIC_APP_URL_SCHEME ?? "priceping";
+}
+

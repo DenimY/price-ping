@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { detectSupportedMall, getMallDisplayInfo, normalizeInputUrl } from "@/lib/mall";
 
 type AlertType = "target_price" | "price_drop" | "price_change";
 
@@ -78,13 +79,25 @@ export function AddProductForm() {
     return Number.isNaN(numericValue) ? null : numericValue;
   }, [currentPrice]);
 
+  const canSubmit =
+    Boolean(url.trim()) &&
+    Boolean(registeredProduct?.title) &&
+    registeredProduct?.last_price !== null &&
+    !fetchingInfo &&
+    !submitting &&
+    (alertType !== "target_price" || parsedTargetPrice !== null);
+  const normalizedUrl = normalizeInputUrl(url);
+  const detectedMall = detectSupportedMall(normalizedUrl);
+  const detectedMallInfo = getMallDisplayInfo(detectedMall);
+  const registeredMall = getMallDisplayInfo(registeredProduct?.mall);
+
   async function handleFetchProductInfo() {
     setFetchingInfo(true);
     setError(null);
     setSuccess(null);
 
     try {
-      if (!url.trim()) {
+      if (!normalizedUrl) {
         throw new Error("상품 URL을 입력해주세요.");
       }
 
@@ -98,9 +111,7 @@ export function AddProductForm() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          url: url.trim(),
-          manual_title: productTitle.trim() || null,
-          manual_current_price: parsedCurrentPrice,
+          url: normalizedUrl,
           preview_only: true
         })
       });
@@ -111,18 +122,20 @@ export function AddProductForm() {
         throw new Error(result.error ?? "상품명/가격 자동 수집에 실패했습니다.");
       }
 
+      if (!result.product.title || result.product.last_price === null) {
+        throw new Error(
+          "이 상품은 현재 자동 수집에 실패했습니다. 수동 입력은 지원하지 않으므로 등록할 수 없습니다."
+        );
+      }
+
       setRegisteredProduct(result.product);
-
-      if (result.product.title) {
-        setProductTitle(result.product.title);
-      }
-
-      if (result.product.last_price !== null) {
-        setCurrentPrice(String(result.product.last_price));
-      }
-
-      setSuccess("상품명과 현재 가격을 불러왔습니다. 필요하면 수정 후 등록하세요.");
+      setProductTitle(result.product.title);
+      setCurrentPrice(String(result.product.last_price));
+      setSuccess("상품명과 현재 가격을 자동 수집했습니다. 이제 등록할 수 있습니다.");
     } catch (fetchError) {
+      setRegisteredProduct(null);
+      setProductTitle("");
+      setCurrentPrice("");
       setError(
         fetchError instanceof Error
           ? fetchError.message
@@ -140,24 +153,16 @@ export function AddProductForm() {
     setSuccess(null);
 
     try {
-      if (!url.trim()) {
+      if (!normalizedUrl) {
         throw new Error("상품 URL을 입력해주세요.");
       }
 
-      if (!productTitle.trim()) {
-        throw new Error("상품명을 입력해주세요. 자동 수집 버튼을 누르거나 직접 입력해주세요.");
-      }
-
-      if (parsedCurrentPrice === null) {
-        throw new Error("현재 가격을 입력해주세요. 자동 수집 버튼을 누르거나 직접 입력해주세요.");
+      if (!registeredProduct?.title || registeredProduct.last_price === null) {
+        throw new Error("자동 수집에 성공한 뒤에만 등록할 수 있습니다.");
       }
 
       if (parsedTargetPrice !== null && parsedTargetPrice <= 0) {
         throw new Error("목표 가격은 0보다 큰 값이어야 합니다.");
-      }
-
-      if (parsedCurrentPrice !== null && parsedCurrentPrice <= 0) {
-        throw new Error("현재 가격은 0보다 큰 값이어야 합니다.");
       }
 
       if (alertType === "target_price" && parsedTargetPrice === null) {
@@ -170,9 +175,9 @@ export function AddProductForm() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          url: url.trim(),
-          manual_title: productTitle.trim(),
-          manual_current_price: parsedCurrentPrice
+          url: normalizedUrl,
+          manual_title: registeredProduct.title,
+          manual_current_price: registeredProduct.last_price
         })
       });
 
@@ -185,14 +190,10 @@ export function AddProductForm() {
       }
 
       setRegisteredProduct(productResult.product);
-
-      if (productResult.product.title) {
-        setProductTitle(productResult.product.title);
-      }
-
-      if (productResult.product.last_price !== null) {
-        setCurrentPrice(String(productResult.product.last_price));
-      }
+      setProductTitle(productResult.product.title ?? "");
+      setCurrentPrice(
+        productResult.product.last_price !== null ? String(productResult.product.last_price) : ""
+      );
 
       if (!productResult.product.id) {
         throw new Error("상품 등록 결과가 올바르지 않습니다. 다시 시도해주세요.");
@@ -269,26 +270,33 @@ export function AddProductForm() {
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-100">상품 추가</h3>
         <p className="mt-1 text-sm text-slate-400">
-          URL을 넣고 자동 수집 버튼을 누르거나 직접 입력한 뒤 등록하세요. 상품명, URL,
-          현재 가격은 필수입니다.
+          URL 입력 후 자동 수집에 성공한 상품만 등록할 수 있습니다. 수동 입력은 현재
+          지원하지 않습니다.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div>
-          <label htmlFor="product-url" className="mb-1 block text-sm text-slate-200">
-            상품 URL
-          </label>
-          <input
-            id="product-url"
-            type="url"
-            required
-            placeholder="https://smartstore.naver.com/... 또는 https://shopping.naver.com/..."
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-          />
+            <label htmlFor="product-url" className="mb-1 block text-sm text-slate-200">
+              상품 URL
+            </label>
+            <input
+              id="product-url"
+              type="url"
+              required
+              placeholder="https://smartstore.naver.com/... / https://shopping.naver.com/... / https://www.coupang.com/..."
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              value={url}
+              onChange={(event) => {
+                setUrl(event.target.value);
+                setRegisteredProduct(null);
+                setProductTitle("");
+                setCurrentPrice("");
+                setError(null);
+                setSuccess(null);
+              }}
+            />
           </div>
           <button
             type="button"
@@ -300,6 +308,26 @@ export function AddProductForm() {
           </button>
         </div>
 
+        {url.trim() && (
+          <div className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm">
+            {detectedMall ? (
+              <div className="flex items-center gap-2 text-slate-300">
+                <span
+                  className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${detectedMallInfo.className}`}
+                >
+                  {detectedMallInfo.shortLabel}
+                </span>
+                <span>감지된 사이트: {detectedMallInfo.label}</span>
+              </div>
+            ) : (
+              <p className="text-red-400">
+                지원하지 않는 URL입니다. 네이버 스마트스토어, 네이버플러스 스토어, 쿠팡 링크만
+                등록할 수 있습니다.
+              </p>
+            )}
+          </div>
+        )}
+
         <div>
           <label htmlFor="product-title" className="mb-1 block text-sm text-slate-200">
             상품명
@@ -308,14 +336,13 @@ export function AddProductForm() {
             id="product-title"
             type="text"
             maxLength={200}
-              required
-            placeholder="자동 수집되거나 직접 입력"
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            readOnly
+            placeholder="자동 수집 성공 시 채워집니다"
+            className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-300 outline-none"
             value={productTitle}
-            onChange={(event) => setProductTitle(event.target.value)}
           />
           <p className="mt-1 text-xs text-slate-500">
-            자동 수집이 비어 있으면 직접 입력한 상품명으로 등록합니다.
+            상품명은 자동 수집 성공 시에만 채워집니다.
           </p>
         </div>
 
@@ -329,14 +356,13 @@ export function AddProductForm() {
               type="number"
               min="0"
               step="1"
-              required
-              placeholder="자동 수집 또는 직접 입력"
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              readOnly
+              placeholder="자동 수집 성공 시 채워집니다"
+              className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-300 outline-none"
               value={currentPrice}
-              onChange={(event) => setCurrentPrice(event.target.value)}
             />
             <p className="mt-1 text-xs text-slate-500">
-              등록 시에는 자동 수집을 다시 하지 않습니다. 지금 입력된 값으로만 저장합니다.
+              현재 가격도 자동 수집 성공 시에만 채워집니다.
             </p>
           </div>
 
@@ -378,7 +404,7 @@ export function AddProductForm() {
             <div className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300">
               등록 시점의 현재 가격을 기준가로 저장합니다.
               <p className="mt-1 text-xs text-slate-500">
-                위 현재 가격 입력값이 필수이며, 그 값을 기준가로 사용합니다.
+                자동 수집된 현재 가격을 기준가로 사용합니다.
               </p>
             </div>
           )}
@@ -401,6 +427,14 @@ export function AddProductForm() {
 
         {registeredProduct && (
           <div className="rounded-md border border-slate-800 bg-slate-900/70 p-3 text-sm text-slate-300">
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${registeredMall.className}`}
+              >
+                {registeredMall.shortLabel}
+              </span>
+              <span className="text-xs text-slate-400">{registeredMall.label}</span>
+            </div>
             <p className="font-medium text-slate-100">
               {(registeredProduct.title ?? productTitle) || "상품명은 아직 수집되지 않았습니다."}
             </p>
@@ -419,7 +453,7 @@ export function AddProductForm() {
 
         <button
           type="submit"
-          disabled={fetchingInfo || submitting}
+          disabled={!canSubmit}
           className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "상품 등록"}

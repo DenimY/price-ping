@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { Capacitor } from "@capacitor/core";
 import { createBrowserClient } from "@/lib/supabaseClient";
+import { getAppUrlScheme, getPublicSiteUrl } from "@/lib/env";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -50,10 +52,14 @@ export default function RegisterPage() {
       }
 
       const supabase = createBrowserClient();
+      const emailRedirectTo = Capacitor.isNativePlatform()
+        ? `${getAppUrlScheme()}://auth/callback?next=/dashboard`
+        : `${getPublicSiteUrl()}/auth/callback?next=/dashboard`;
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo,
           data: {
             full_name: trimmedFullName,
             nickname: trimmedNickname,
@@ -67,7 +73,9 @@ export default function RegisterPage() {
         setError(signUpError.message);
         return;
       }
-      setMessage("회원가입이 완료되었습니다. 이메일로 전송된 인증 링크를 확인해주세요.");
+      setMessage(
+        "회원가입이 완료되었습니다. 이메일 인증 후 관리자 승인까지 완료되면 서비스를 이용할 수 있습니다."
+      );
     } finally {
       setLoading(false);
     }

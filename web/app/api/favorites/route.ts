@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
 
 type FavoriteRow = {
   id: number;
@@ -8,6 +8,7 @@ type FavoriteRow = {
   products:
     | {
         id: number;
+        mall: string;
         title: string | null;
         image_url: string | null;
         last_price: number | null;
@@ -15,6 +16,7 @@ type FavoriteRow = {
       }
     | Array<{
         id: number;
+        mall: string;
         title: string | null;
         image_url: string | null;
         last_price: number | null;
@@ -42,13 +44,14 @@ function getFavoriteProduct(favorite: FavoriteRow) {
 }
 
 export async function GET() {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isApprovedProfile(profile)) {
+    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
   }
 
   const { data: favorites, error } = await supabase
@@ -60,6 +63,7 @@ export async function GET() {
         created_at,
         products (
           id,
+          mall,
           title,
           image_url,
           last_price,
@@ -110,6 +114,7 @@ export async function GET() {
     return {
       favorite_id: favorite.id,
       product_id: product?.id ?? null,
+      mall: product?.mall ?? null,
       product_title: product?.title ?? null,
       product_image_url: product?.image_url ?? null,
       product_url: product?.url ?? null,
@@ -133,13 +138,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await getCurrentUserProfile();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isApprovedProfile(profile)) {
+    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
   }
 
   const body = (await request.json()) as {

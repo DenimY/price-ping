@@ -2,15 +2,20 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const callbackError =
+    searchParams.get("error") === "auth_callback_failed"
+      ? "이메일 인증 또는 로그인 복귀 처리에 실패했습니다. 다시 로그인해주세요."
+      : null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -56,7 +61,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {(error || callbackError) && <p className="text-sm text-red-400">{error ?? callbackError}</p>}
         <button
           type="submit"
           disabled={loading}
