@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [agreedToKakaoAlert, setAgreedToKakaoAlert] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export default function RegisterPage() {
     try {
       const trimmedFullName = fullName.trim();
       const trimmedNickname = nickname.trim();
-      const trimmedPhoneNumber = phoneNumber.trim();
+      const trimmedPhoneNumber = phoneNumber.trim() || null;
 
       if (!trimmedFullName) {
         setError("이름을 입력해주세요.");
@@ -38,16 +39,16 @@ export default function RegisterPage() {
         setError("닉네임을 입력해주세요.");
         return;
       }
-      if (!trimmedPhoneNumber) {
-        setError("전화번호를 입력해주세요.");
-        return;
-      }
       if (isPasswordMismatch) {
         setError("비밀번호가 일치하지 않습니다.");
         return;
       }
       if (!agreedToPrivacy) {
         setError("개인정보 수집 및 이용에 동의해주세요.");
+        return;
+      }
+      if (agreedToKakaoAlert && !trimmedPhoneNumber) {
+        setError("카카오 알림을 받으려면 전화번호를 입력해주세요.");
         return;
       }
 
@@ -65,7 +66,9 @@ export default function RegisterPage() {
             nickname: trimmedNickname,
             phone_number: trimmedPhoneNumber,
             privacy_consent: true,
-            privacy_consent_at: new Date().toISOString()
+            privacy_consent_at: new Date().toISOString(),
+            kakao_alert_consent: agreedToKakaoAlert,
+            kakao_alert_consent_at: agreedToKakaoAlert ? new Date().toISOString() : null
           }
         }
       });
@@ -109,13 +112,12 @@ export default function RegisterPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm">전화번호</label>
+          <label className="mb-1 block text-sm">전화번호 (선택)</label>
           <input
             type="tel"
-            required
             inputMode="tel"
             autoComplete="tel"
-            placeholder="010-1234-5678"
+            placeholder="010-1234-5678 (카카오 알림 수신 시 필요)"
             className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
@@ -174,8 +176,8 @@ export default function RegisterPage() {
                 개인정보 수집 및 이용 내용에 동의합니다. (필수)
               </p>
               <p className="mt-1 text-xs leading-6 text-slate-400">
-                회원가입, 가격 알림, 카카오톡 알림 제공을 위해 이름, 닉네임, 전화번호,
-                이메일 등의 정보를 수집합니다.
+                회원가입, 계정 관리, 가격 알림 서비스 제공을 위해 이름, 닉네임, 이메일
+                등의 정보를 수집합니다.
               </p>
               <details className="mt-2 text-xs leading-6 text-slate-300">
                 <summary className="cursor-pointer select-none text-slate-200">
@@ -183,25 +185,55 @@ export default function RegisterPage() {
                 </summary>
                 <div className="mt-2 space-y-2">
                   <p>
-                    수집 항목: 이름, 닉네임, 전화번호, 이메일 주소, 비밀번호, 관심 상품
-                    정보, 알림 설정 정보, 알림 발송 이력
+                    수집 항목: 이름, 닉네임, 이메일 주소, 비밀번호, 관심 상품 정보, 알림
+                    설정 정보, 알림 발송 이력
                   </p>
                   <p>
-                    이용 목적: 회원 식별 및 계정 관리, 가격 추적 서비스 제공, 웹/카카오톡
-                    알림 발송, 서비스 운영 및 부정 이용 방지
+                    이용 목적: 회원 식별 및 계정 관리, 가격 추적 서비스 제공, 서비스 운영
+                    및 부정 이용 방지
                   </p>
                   <p>
                     보유 기간: 회원 탈퇴 시까지 보관하며, 관련 법령 또는 내부 운영 정책에
                     따라 일부 정보는 일정 기간 추가 보관될 수 있습니다.
                   </p>
                   <p>
-                    카카오톡 알림 기능을 사용하는 경우, 알림 발송을 위해 전화번호 및
-                    카카오 연계 정보가 필요한 범위 내에서 처리될 수 있습니다.
-                  </p>
-                  <p>
                     귀하는 개인정보 수집 및 이용에 대한 동의를 거부할 권리가 있으나, 필수
                     항목에 동의하지 않을 경우 회원가입 및 알림 서비스 이용이 제한될 수
                     있습니다.
+                  </p>
+                </div>
+              </details>
+            </div>
+          </label>
+        </div>
+        <div className="rounded-md border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-300">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={agreedToKakaoAlert}
+              onChange={(e) => setAgreedToKakaoAlert(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-slate-100">카카오톡 가격 알림 수신에 동의합니다. (선택)</p>
+              <p className="mt-1 text-xs leading-6 text-slate-400">
+                카카오 알림을 받으려면 전화번호를 입력해야 하며, 알림 발송 목적 범위에서만
+                전화번호와 템플릿 정보가 처리됩니다.
+              </p>
+              <details className="mt-2 text-xs leading-6 text-slate-300">
+                <summary className="cursor-pointer select-none text-slate-200">
+                  자세히 보기
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <p>수집 항목: 전화번호</p>
+                  <p>이용 목적: 가격 조건 만족 시 카카오 알림톡 발송</p>
+                  <p>
+                    보유 기간: 회원 탈퇴 또는 카카오 알림 수신 동의 철회 시까지 보관하며,
+                    관련 법령에 따라 일부 정보는 일정 기간 보관될 수 있습니다.
+                  </p>
+                  <p>
+                    귀하는 선택 동의를 거부할 권리가 있으며, 거부하더라도 기본 서비스 이용은
+                    가능합니다. 단, 카카오톡 알림 기능은 사용할 수 없습니다.
                   </p>
                 </div>
               </details>

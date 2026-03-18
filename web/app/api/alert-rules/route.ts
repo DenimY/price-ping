@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
+import { hasKakaoBizConfig } from "@/lib/kakao/directConfig";
+import { sendKakaoPriceAlert } from "@/lib/notifications/kakao";
 
 const ALLOWED_ALERT_TYPES = ["target_price", "price_drop", "price_change"] as const;
 
@@ -107,6 +109,49 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (body.active !== false && profile?.kakao_alert_consent && profile.phone_number && hasKakaoBizConfig()) {
+    const { data: product } = await supabase
+      .from("products")
+      .select("id, title, url, last_price")
+      .eq("id", body.product_id)
+      .maybeSingle();
+
+    const currentPrice = product?.last_price ?? null;
+    const isImmediatelyTriggered =
+      currentPrice !== null &&
+      ((type === "target_price" && targetPrice !== null && currentPrice <= targetPrice) ||
+        (type === "price_drop" && baselinePrice !== null && currentPrice < baselinePrice) ||
+        (type === "price_change" && baselinePrice !== null && currentPrice !== baselinePrice));
+
+    if (product && isImmediatelyTriggered) {
+      try {
+        await sendKakaoPriceAlert({
+          supabase,
+          userId: user.id,
+          phoneNumber: profile.phone_number,
+          productId: product.id,
+          alertRuleId: data.id as number,
+          title: product.title ?? "상품",
+          price: currentPrice,
+          conditionLabel:
+            type === "target_price"
+              ? "목표가 도달"
+              : type === "price_drop"
+                ? "등록가 대비 하락"
+                : "등록가 대비 변동",
+          productUrl: product.url
+        });
+
+        await supabase
+          .from("alert_rules")
+          .update({ last_triggered_at: new Date().toISOString() })
+          .eq("id", data.id);
+      } catch {
+        // 알림 규칙 저장 자체는 성공시키고, 발송 실패는 notifications 로그에 남긴다.
+      }
+    }
   }
 
   return NextResponse.json({ alert_rule: data });

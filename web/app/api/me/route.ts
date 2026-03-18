@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { buildCurrentProfile } from "@/lib/accessControl";
 
 export async function GET() {
   const supabase = createServerSupabaseClient();
@@ -14,9 +15,7 @@ export async function GET() {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select(
-      "id, email, full_name, nickname, phone_number, privacy_consent, role, approval_status, approved_at, created_at"
-    )
+    .select("*")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -24,19 +23,21 @@ export async function GET() {
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
-  return NextResponse.json(
-    profile ?? {
+  const resolvedProfile = buildCurrentProfile(
+    {
       id: user.id,
-      email: user.email,
-      full_name: user.user_metadata.full_name ?? null,
-      nickname: null,
-      phone_number: user.user_metadata.phone_number ?? null,
-      privacy_consent: Boolean(user.user_metadata.privacy_consent),
-      role: "user",
-      approval_status: "pending",
-      approved_at: null,
-      created_at: user.created_at
-    }
+      email: user.email ?? null,
+      user_metadata: user.user_metadata as Record<string, unknown>
+    },
+    (profile ?? null) as Record<string, unknown>
   );
+
+  return NextResponse.json({
+    ...resolvedProfile,
+    created_at:
+      profile && typeof profile.created_at === "string" && profile.created_at.length > 0
+        ? profile.created_at
+        : user.created_at
+  });
 }
 

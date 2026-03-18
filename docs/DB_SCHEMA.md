@@ -28,7 +28,13 @@
 |------------|-----------|-------------------------------------|
 | id         | uuid PK   | `auth.users.id`와 1:1 매핑          |
 | email      | text      | 사용자 이메일 (unique)              |
+| full_name  | text      | 이름                                |
 | nickname   | text      | 닉네임                              |
+| phone_number | text    | 전화번호 (선택)                     |
+| privacy_consent | boolean | 개인정보 수집 및 이용 동의 여부   |
+| privacy_consent_at | timestamptz | 개인정보 동의 시각         |
+| kakao_alert_consent | boolean | 카카오 알림 수신 동의 여부   |
+| kakao_alert_consent_at | timestamptz | 카카오 동의 시각       |
 | role       | text      | 사용자 역할 (`user`, `admin`)       |
 | created_at | timestamptz | 생성 시각                         |
 | updated_at | timestamptz | 수정 시각                         |
@@ -37,7 +43,13 @@
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
+  full_name text,
   nickname text,
+  phone_number text,
+  privacy_consent boolean default false,
+  privacy_consent_at timestamptz,
+  kakao_alert_consent boolean default false,
+  kakao_alert_consent_at timestamptz,
   role text not null default 'user' check (role in ('user', 'admin')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()

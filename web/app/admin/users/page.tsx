@@ -2,6 +2,23 @@ import { redirect } from "next/navigation";
 import { UserApprovalTable, type AdminUserRow } from "@/components/admin/UserApprovalTable";
 import { getCurrentUserProfile, isAdminProfile } from "@/lib/accessControl";
 
+function mapAdminUserRow(row: Record<string, unknown>): AdminUserRow {
+  return {
+    id: typeof row.id === "string" ? row.id : "",
+    email: typeof row.email === "string" ? row.email : null,
+    full_name: typeof row.full_name === "string" ? row.full_name : null,
+    nickname: typeof row.nickname === "string" ? row.nickname : null,
+    phone_number: typeof row.phone_number === "string" ? row.phone_number : null,
+    role: row.role === "admin" ? "admin" : "user",
+    approval_status:
+      row.approval_status === "approved" || row.approval_status === "rejected"
+        ? row.approval_status
+        : "pending",
+    approved_at: typeof row.approved_at === "string" ? row.approved_at : null,
+    created_at: typeof row.created_at === "string" ? row.created_at : new Date(0).toISOString()
+  };
+}
+
 export default async function AdminUsersPage() {
   const { supabase, user, profile } = await getCurrentUserProfile();
 
@@ -15,7 +32,7 @@ export default async function AdminUsersPage() {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, nickname, phone_number, role, approval_status, approved_at, created_at")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -27,7 +44,7 @@ export default async function AdminUsersPage() {
     );
   }
 
-  const users = ((data ?? []) as AdminUserRow[]).sort((a, b) => {
+  const users = ((data ?? []) as Array<Record<string, unknown>>).map(mapAdminUserRow).sort((a, b) => {
     if (a.role !== b.role) {
       return a.role === "admin" ? -1 : 1;
     }

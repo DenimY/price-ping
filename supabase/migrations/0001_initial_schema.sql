@@ -14,7 +14,9 @@ begin
     nickname,
     phone_number,
     privacy_consent,
-    privacy_consent_at
+    privacy_consent_at,
+    kakao_alert_consent,
+    kakao_alert_consent_at
   )
   values (
     new.id,
@@ -23,7 +25,9 @@ begin
     nullif(trim(new.raw_user_meta_data ->> 'nickname'), ''),
     nullif(trim(new.raw_user_meta_data ->> 'phone_number'), ''),
     coalesce((new.raw_user_meta_data ->> 'privacy_consent')::boolean, false),
-    nullif(new.raw_user_meta_data ->> 'privacy_consent_at', '')::timestamptz
+    nullif(new.raw_user_meta_data ->> 'privacy_consent_at', '')::timestamptz,
+    coalesce((new.raw_user_meta_data ->> 'kakao_alert_consent')::boolean, false),
+    nullif(new.raw_user_meta_data ->> 'kakao_alert_consent_at', '')::timestamptz
   )
   on conflict (id) do update
     set email = excluded.email,
@@ -34,6 +38,11 @@ begin
         privacy_consent_at = coalesce(
           public.profiles.privacy_consent_at,
           excluded.privacy_consent_at
+        ),
+        kakao_alert_consent = public.profiles.kakao_alert_consent or excluded.kakao_alert_consent,
+        kakao_alert_consent_at = coalesce(
+          public.profiles.kakao_alert_consent_at,
+          excluded.kakao_alert_consent_at
         );
 
   return new;
@@ -48,6 +57,8 @@ create table if not exists public.profiles (
   phone_number text,
   privacy_consent boolean not null default false,
   privacy_consent_at timestamptz,
+  kakao_alert_consent boolean not null default false,
+  kakao_alert_consent_at timestamptz,
   role text not null default 'user' check (role in ('user', 'admin')),
   approval_status text not null default 'pending' check (approval_status in ('pending', 'approved', 'rejected')),
   approved_at timestamptz,
