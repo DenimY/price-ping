@@ -100,6 +100,7 @@ create table if not exists public.favorites (
   user_id uuid not null references auth.users(id) on delete cascade,
   product_id bigint not null references public.products(id) on delete cascade,
   memo text,
+  tracking_enabled boolean not null default true,
   created_at timestamptz not null default now(),
   unique (user_id, product_id)
 );

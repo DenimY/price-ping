@@ -6,8 +6,9 @@ import {
   extractTitleTag,
   fetchHtml,
   fetchHtmlDebug,
+  isMeaningfulTitle,
   parsePriceText,
-  scrapeWithPuppeteerCandidates
+  scrapeWithPuppeteerCandidates,
 } from "./common";
 import type { MallScraper } from "./types";
 
@@ -16,6 +17,7 @@ async function scrapeFromHtml(url: string) {
     const html = await fetchHtml(url);
 
     if (!html) {
+      console.log("[SCRAPER:coupang] html scrape returned empty result", { url });
       return EMPTY_SCRAPE_RESULT;
     }
 
@@ -27,7 +29,9 @@ async function scrapeFromHtml(url: string) {
       cleanTitle(extractTitleTag(html));
 
     const imageUrl =
-      jsonLd.imageUrl ?? extractMetaContent(html, "og:image") ?? extractMetaContent(html, "twitter:image");
+      jsonLd.imageUrl ??
+      extractMetaContent(html, "og:image") ??
+      extractMetaContent(html, "twitter:image");
 
     const lastPrice =
       jsonLd.lastPrice ??
@@ -35,11 +39,18 @@ async function scrapeFromHtml(url: string) {
       parsePriceText(extractMetaContent(html, "og:price:amount")) ??
       parsePriceText(extractMetaContent(html, "twitter:data1"));
 
+    console.log("[SCRAPER:coupang] html extraction result", {
+      url,
+      title,
+      imageUrl,
+      lastPrice
+    });
+
     if (title || imageUrl || lastPrice !== null) {
       return {
         title,
         imageUrl,
-        lastPrice
+        lastPrice,
       };
     }
 
@@ -55,7 +66,7 @@ async function scrapeWithPuppeteer(url: string) {
       "h1[class*='prod-buy-header__title']",
       "h1[class*='ProductInfo_productName']",
       "h1[class*='product-title']",
-      "h1"
+      "h1",
     ];
 
     const priceSelectors = [
@@ -63,13 +74,13 @@ async function scrapeWithPuppeteer(url: string) {
       "strong[class*='sale-price']",
       "span[class*='priceValue']",
       "strong[class*='priceValue']",
-      "em[class*='price']"
+      "em[class*='price']",
     ];
 
     const imageSelectors = [
       "meta[property='og:image']",
       "img[class*='prod-image']",
-      "img[class*='ProductImage']"
+      "img[class*='ProductImage']",
     ];
 
     let title: string | null = null;
@@ -117,15 +128,37 @@ async function scrapeWithPuppeteer(url: string) {
 export const coupangScraper: MallScraper = {
   mall: "coupang",
   async scrape(url: string) {
-    let scraped = await scrapeFromHtml(url);
+    const htmlScraped = await scrapeFromHtml(url);
+    let scraped = htmlScraped;
 
-    if (!scraped.title && !scraped.imageUrl && scraped.lastPrice === null) {
-      scraped = await scrapeWithPuppeteer(url);
+    if (
+      !isMeaningfulTitle(htmlScraped.title) ||
+      htmlScraped.lastPrice === null
+    ) {
+      console.log("[SCRAPER:coupang] fallback to puppeteer", {
+        url,
+        htmlTitle: htmlScraped.title,
+        htmlLastPrice: htmlScraped.lastPrice
+      });
+
+      const dynamicScraped = await scrapeWithPuppeteer(url);
+      scraped = {
+        title: isMeaningfulTitle(dynamicScraped.title)
+          ? dynamicScraped.title
+          : htmlScraped.title,
+        imageUrl: dynamicScraped.imageUrl ?? htmlScraped.imageUrl,
+        lastPrice: dynamicScraped.lastPrice ?? htmlScraped.lastPrice,
+      };
     }
+
+    console.log("[SCRAPER:coupang] final scrape result", {
+      url,
+      result: scraped
+    });
 
     return scraped;
   },
   async debugHtml(url: string) {
     return [await fetchHtmlDebug("origin", url)];
-  }
+  },
 };

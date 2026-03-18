@@ -4,6 +4,7 @@ import { getCurrentUserProfile, isApprovedProfile } from "@/lib/accessControl";
 type FavoriteRow = {
   id: number;
   memo: string | null;
+  tracking_enabled: boolean;
   created_at: string;
   products:
     | {
@@ -51,7 +52,10 @@ export async function GET() {
   }
 
   if (!isApprovedProfile(profile)) {
-    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
+    return NextResponse.json(
+      { error: "관리자 승인 후 이용할 수 있습니다." },
+      { status: 403 },
+    );
   }
 
   const { data: favorites, error } = await supabase
@@ -60,6 +64,7 @@ export async function GET() {
       `
         id,
         memo,
+        tracking_enabled,
         created_at,
         products (
           id,
@@ -69,7 +74,7 @@ export async function GET() {
           last_price,
           url
         )
-      `
+      `,
     )
     .order("created_at", { ascending: false });
 
@@ -102,9 +107,9 @@ export async function GET() {
           type: rule.type,
           target_price: rule.target_price,
           baseline_price: rule.baseline_price,
-          active: rule.active
-        }
-      ])
+          active: rule.active,
+        },
+      ]),
     );
   }
 
@@ -120,17 +125,18 @@ export async function GET() {
       product_url: product?.url ?? null,
       last_price: product?.last_price ?? null,
       memo: favorite.memo,
-      alert_type: product?.id ? alertMap.get(product.id)?.type ?? null : null,
+      tracking_enabled: favorite.tracking_enabled,
+      alert_type: product?.id ? (alertMap.get(product.id)?.type ?? null) : null,
       target_price: product?.id
-        ? alertMap.get(product.id)?.target_price ?? null
+        ? (alertMap.get(product.id)?.target_price ?? null)
         : null,
       baseline_price: product?.id
-        ? alertMap.get(product.id)?.baseline_price ?? null
+        ? (alertMap.get(product.id)?.baseline_price ?? null)
         : null,
       alert_active: product?.id
-        ? alertMap.get(product.id)?.active ?? false
+        ? (alertMap.get(product.id)?.active ?? false)
         : false,
-      created_at: favorite.created_at
+      created_at: favorite.created_at,
     };
   });
 
@@ -145,16 +151,23 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isApprovedProfile(profile)) {
-    return NextResponse.json({ error: "관리자 승인 후 이용할 수 있습니다." }, { status: 403 });
+    return NextResponse.json(
+      { error: "관리자 승인 후 이용할 수 있습니다." },
+      { status: 403 },
+    );
   }
 
   const body = (await request.json()) as {
     product_id?: number;
     memo?: string;
+    tracking_enabled?: boolean;
   };
 
   if (!body.product_id) {
-    return NextResponse.json({ error: "product_id is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "product_id is required" },
+      { status: 400 },
+    );
   }
 
   const { data, error } = await supabase
@@ -163,13 +176,14 @@ export async function POST(request: NextRequest) {
       {
         user_id: user.id,
         product_id: body.product_id,
-        memo: body.memo ?? null
+        memo: body.memo ?? null,
+        tracking_enabled: body.tracking_enabled ?? true,
       },
       {
-        onConflict: "user_id,product_id"
-      }
+        onConflict: "user_id,product_id",
+      },
     )
-    .select("id, product_id, memo, created_at")
+    .select("id, product_id, memo, tracking_enabled, created_at")
     .single();
 
   if (error) {
@@ -178,4 +192,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ favorite: data }, { status: 201 });
 }
-

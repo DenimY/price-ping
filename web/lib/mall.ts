@@ -1,4 +1,4 @@
-export type SupportedMall = "naver_store" | "naver_plus_store" | "coupang";
+export type SupportedMall = "naver_store" | "naver_plus_store" | "coupang" | "supreme";
 
 export function normalizeInputUrl(input: string) {
   let value = input.trim();
@@ -43,6 +43,10 @@ export function detectSupportedMall(url: string): SupportedMall | null {
       return "coupang";
     }
 
+    if (hostname === "shop.supreme.com") {
+      return "supreme";
+    }
+
     return null;
   } catch {
     return null;
@@ -62,6 +66,12 @@ export function getMallDisplayInfo(mall: string | null | undefined) {
         label: "쿠팡",
         shortLabel: "C",
         className: "border-red-500/40 bg-red-500/10 text-red-300"
+      };
+    case "supreme":
+      return {
+        label: "Supreme",
+        shortLabel: "S",
+        className: "border-slate-300/40 bg-slate-200/10 text-slate-200"
       };
     case "naver_store":
     default:

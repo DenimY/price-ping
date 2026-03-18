@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import puppeteer, { type Browser } from "puppeteer";
 import type { ScrapeResult, ScraperHtmlDebugResult } from "./types";
 
 export const EMPTY_SCRAPE_RESULT: ScrapeResult = {
@@ -6,6 +6,29 @@ export const EMPTY_SCRAPE_RESULT: ScrapeResult = {
   imageUrl: null,
   lastPrice: null
 };
+
+const SCRAPER_DEBUG_ENABLED = process.env.NODE_ENV !== "production";
+
+function debugScraperLog(scope: string, message: string, meta?: Record<string, unknown>) {
+  if (!SCRAPER_DEBUG_ENABLED) {
+    return;
+  }
+
+  if (meta) {
+    console.log(`[SCRAPER:${scope}] ${message}`, meta);
+    return;
+  }
+
+  console.log(`[SCRAPER:${scope}] ${message}`);
+}
+
+function truncateForLog(value: string | null | undefined, limit = 240) {
+  if (!value) {
+    return null;
+  }
+
+  return value.length > limit ? `${value.slice(0, limit)}...` : value;
+}
 
 export function parsePriceText(value: string | null | undefined) {
   if (!value) {
@@ -70,6 +93,15 @@ export function cleanTitle(value: string | null) {
   return value.replace(/\s+\|\s+.+$/, "").trim();
 }
 
+export function isMeaningfulTitle(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized !== "네이버+ 스토어";
+}
+
 export function extractJsonLdProduct(html: string): ScrapeResult {
   const scriptMatches = html.matchAll(
     /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
@@ -118,21 +150,43 @@ export function extractJsonLdProduct(html: string): ScrapeResult {
 }
 
 export async function fetchHtml(url: string) {
-  const response = await fetch(url, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-      "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
-      "cache-control": "no-cache"
-    },
-    cache: "no-store"
-  });
+  debugScraperLog("fetch", "request start", { url });
 
-  if (!response.ok) {
-    return null;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+        "cache-control": "no-cache"
+      },
+      cache: "no-store"
+    });
+
+    const html = await response.text();
+
+    debugScraperLog("fetch", "request complete", {
+      requestedUrl: url,
+      finalUrl: response.url,
+      status: response.status,
+      ok: response.ok,
+      contentType: response.headers.get("content-type"),
+      bodyPreview: truncateForLog(html)
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return html;
+  } catch (error) {
+    debugScraperLog("fetch", "request failed", {
+      url,
+      error: error instanceof Error ? error.message : "unknown error"
+    });
+
+    throw error;
   }
-
-  return response.text();
 }
 
 export async function fetchHtmlDebug(
@@ -182,12 +236,26 @@ export async function scrapeWithPuppeteerCandidates(
   candidateUrls: string[],
   evaluate: () => PuppeteerEvaluateResult | Promise<PuppeteerEvaluateResult>
 ) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
+  let browser: Browser | null = null;
 
   try {
+    try {
+      debugScraperLog("puppeteer", "browser launch start", {
+        candidateCount: candidateUrls.length
+      });
+
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      });
+
+      debugScraperLog("puppeteer", "browser launch complete");
+    } catch {
+      // 로컬에 Chrome이 없으면 동적 스크래핑을 생략하고 HTML 기반 결과만 사용한다.
+      debugScraperLog("puppeteer", "browser launch skipped");
+      return EMPTY_SCRAPE_RESULT;
+    }
+
     const page = await browser.newPage();
     await page.setUserAgent(
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
@@ -198,9 +266,19 @@ export async function scrapeWithPuppeteerCandidates(
 
     for (const candidateUrl of candidateUrls) {
       try {
-        await page.goto(candidateUrl, {
+        debugScraperLog("puppeteer", "page goto start", {
+          url: candidateUrl
+        });
+
+        const response = await page.goto(candidateUrl, {
           waitUntil: "domcontentloaded",
           timeout: 30000
+        });
+
+        debugScraperLog("puppeteer", "page goto complete", {
+          requestedUrl: candidateUrl,
+          finalUrl: page.url(),
+          status: response?.status() ?? null
         });
 
         await page.waitForFunction(
@@ -211,7 +289,19 @@ export async function scrapeWithPuppeteerCandidates(
           { timeout: 15000 }
         );
 
+        const pageSnapshot = await page.evaluate(() => ({
+          title: document.title,
+          bodyPreview: document.body?.innerText?.slice(0, 240) ?? null
+        }));
+
+        debugScraperLog("puppeteer", "page snapshot", pageSnapshot);
+
         const data = await page.evaluate(evaluate);
+
+        debugScraperLog("puppeteer", "selector evaluation complete", {
+          url: candidateUrl,
+          result: data
+        });
 
         if (data.title || data.imageUrl || data.priceText) {
           return {
@@ -220,13 +310,20 @@ export async function scrapeWithPuppeteerCandidates(
             lastPrice: parsePriceText(data.priceText)
           };
         }
-      } catch {
+      } catch (error) {
+        debugScraperLog("puppeteer", "candidate failed", {
+          url: candidateUrl,
+          error: error instanceof Error ? error.message : "unknown error"
+        });
+
         // 다음 후보 URL 시도
       }
     }
 
     return EMPTY_SCRAPE_RESULT;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }

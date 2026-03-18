@@ -113,6 +113,28 @@ async function main() {
 
   console.log("승인 상태 컬럼 확인 성공: profiles.approval_status 접근이 가능합니다.");
 
+  const { error: favoriteTrackingError } = await supabase
+    .from("favorites")
+    .select("tracking_enabled", { count: "exact", head: true });
+
+  if (favoriteTrackingError?.code === "42703") {
+    throw new Error(
+      "DB 연결은 되었지만 favorites.tracking_enabled 컬럼이 없습니다. 최신 0001_initial_schema.sql 기준으로 컬럼을 추가해주세요."
+    );
+  }
+
+  if (favoriteTrackingError?.code === "42501") {
+    throw new Error(
+      "DB 연결은 되었지만 권한 문제가 있습니다. 테이블 권한 또는 RLS/GRANT 설정을 확인해주세요."
+    );
+  }
+
+  if (favoriteTrackingError) {
+    throw new Error(`DB 확인 실패: ${favoriteTrackingError.message}`);
+  }
+
+  console.log("가격 추적 컬럼 확인 성공: favorites.tracking_enabled 접근이 가능합니다.");
+
   const { error: alertRuleError } = await supabase
     .from("alert_rules")
     .select("baseline_price", { count: "exact", head: true });

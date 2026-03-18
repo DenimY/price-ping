@@ -5,6 +5,7 @@ import {
   extractTitleTag,
   fetchHtml,
   fetchHtmlDebug,
+  isMeaningfulTitle,
   parsePriceText,
   scrapeWithPuppeteerCandidates
 } from "./common";
@@ -54,6 +55,7 @@ async function scrapeFromHtml(url: string) {
         cleanTitle(extractMetaContent(html, "og:title")) ??
         cleanTitle(extractMetaContent(html, "twitter:title")) ??
         cleanTitle(extractTitleTag(html));
+      const resolvedTitle = isMeaningfulTitle(title) ? title : null;
 
       const imageUrl =
         extractMetaContent(html, "og:image") ?? extractMetaContent(html, "twitter:image");
@@ -63,9 +65,9 @@ async function scrapeFromHtml(url: string) {
         parsePriceText(extractMetaContent(html, "product:price:amount")) ??
         parsePriceText(extractMetaContent(html, "kakao:commerce:regular_price"));
 
-      if (title || imageUrl || lastPrice !== null) {
+      if (resolvedTitle || imageUrl || lastPrice !== null) {
         return {
-          title,
+          title: resolvedTitle,
           imageUrl,
           lastPrice
         };
@@ -162,10 +164,16 @@ async function scrapeWithPuppeteer(url: string) {
 export const naverScraper: MallScraper = {
   mall: "naver_store",
   async scrape(url: string) {
-    let scraped = await scrapeFromHtml(url);
+    const htmlScraped = await scrapeFromHtml(url);
+    let scraped = htmlScraped;
 
-    if (!scraped.title && !scraped.imageUrl && scraped.lastPrice === null) {
-      scraped = await scrapeWithPuppeteer(url);
+    if (!isMeaningfulTitle(htmlScraped.title) || htmlScraped.lastPrice === null) {
+      const dynamicScraped = await scrapeWithPuppeteer(url);
+      scraped = {
+        title: isMeaningfulTitle(dynamicScraped.title) ? dynamicScraped.title : htmlScraped.title,
+        imageUrl: dynamicScraped.imageUrl ?? htmlScraped.imageUrl,
+        lastPrice: dynamicScraped.lastPrice ?? htmlScraped.lastPrice
+      };
     }
 
     return scraped;

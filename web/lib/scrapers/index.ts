@@ -2,6 +2,7 @@ import { detectSupportedMall, normalizeInputUrl, type SupportedMall } from "../m
 import { EMPTY_SCRAPE_RESULT } from "./common";
 import { coupangScraper } from "./coupang";
 import { naverScraper } from "./naver";
+import { supremeScraper } from "./supreme";
 import type {
   MallScraper,
   ScrapeResult,
@@ -12,7 +13,8 @@ import type {
 const SCRAPERS: Partial<Record<SupportedMall, MallScraper>> = {
   naver_store: naverScraper,
   naver_plus_store: naverScraper,
-  coupang: coupangScraper
+  coupang: coupangScraper,
+  supreme: supremeScraper
 };
 
 async function getScraperHtmlDebugByMall(url: string, mall: SupportedMall): Promise<ScraperHtmlDebugResult[]> {

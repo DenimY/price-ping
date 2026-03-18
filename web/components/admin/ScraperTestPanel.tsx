@@ -90,7 +90,7 @@ export function ScraperTestPanel() {
             id="scraper-test-url"
             type="url"
             required
-            placeholder="https://smartstore.naver.com/... 또는 https://www.coupang.com/..."
+            placeholder="https://smartstore.naver.com/... / https://www.coupang.com/... / https://shop.supreme.com/..."
             className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
