@@ -44,7 +44,6 @@ function FavoriteCard({ item }: FavoriteCardProps) {
     const router = useRouter();
     const mallInfo = getMallDisplayInfo(item.mall);
     const [memo, setMemo] = useState(item.memo ?? "");
-    const [trackingEnabled, setTrackingEnabled] = useState(item.trackingEnabled);
     const [alertType, setAlertType] = useState<AlertType>(item.alertType);
     const [targetPrice, setTargetPrice] = useState(
         item.targetPrice !== null ? String(item.targetPrice) : ""
@@ -88,8 +87,7 @@ function FavoriteCard({ item }: FavoriteCardProps) {
                 },
                 body: JSON.stringify({
                     product_id: item.productId,
-                    memo: memo.trim() || null,
-                    tracking_enabled: trackingEnabled
+                    memo: memo.trim() || null
                 })
             });
 
@@ -180,18 +178,6 @@ function FavoriteCard({ item }: FavoriteCardProps) {
                 <div className="flex flex-col items-end gap-2">
                     <button
                         type="button"
-                        onClick={() => setTrackingEnabled((prev) => !prev)}
-                        disabled={loading || deleting}
-                        aria-pressed={trackingEnabled}
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition ${trackingEnabled
-                                ? "border-sky-500/60 bg-sky-500/10 text-sky-300"
-                                : "border-slate-700 bg-slate-900 text-slate-300"
-                            } disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                        추적 {trackingEnabled ? "ON" : "OFF"}
-                    </button>
-                    <button
-                        type="button"
                         onClick={() => setAlertActive((prev) => !prev)}
                         disabled={loading || deleting}
                         aria-pressed={alertActive}
@@ -208,7 +194,6 @@ function FavoriteCard({ item }: FavoriteCardProps) {
             <div className="mt-4 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
                 <p>현재 가격: {item.lastPrice?.toLocaleString() ?? "-"}원</p>
                 <p>현재 알림 조건: {getAlertTypeLabel(item.alertType)}</p>
-                <p>가격 추적: {trackingEnabled ? "켜짐" : "꺼짐"}</p>
                 <p>알림 상태: {alertActive ? "켜짐" : "꺼짐"}</p>
                 {item.alertType === "target_price" ? (
                     <p>기존 목표 가격: {item.targetPrice?.toLocaleString() ?? "-"}원</p>
@@ -216,12 +201,6 @@ function FavoriteCard({ item }: FavoriteCardProps) {
                     <p>등록 기준가: {item.baselinePrice?.toLocaleString() ?? "-"}원</p>
                 )}
             </div>
-
-            {!trackingEnabled && (
-                <p className="mt-3 text-xs text-amber-300">
-                    가격 추적이 꺼져 있으면 현재 가격 갱신과 가격 조건 기반 알림이 모두 일시 중지됩니다.
-                </p>
-            )}
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>

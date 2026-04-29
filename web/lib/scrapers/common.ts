@@ -8,6 +8,10 @@ export const EMPTY_SCRAPE_RESULT: ScrapeResult = {
 };
 
 const SCRAPER_DEBUG_ENABLED = process.env.NODE_ENV !== "production";
+const SCRAPER_API_ENDPOINT = process.env.SCRAPER_API_ENDPOINT?.trim() || "https://api.scraperapi.com";
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY?.trim() || "";
+const SCRAPER_API_COUNTRY_CODE = process.env.SCRAPER_API_COUNTRY_CODE?.trim() || "kr";
+const SCRAPER_API_RENDER = process.env.SCRAPER_API_RENDER !== "false";
 
 function debugScraperLog(scope: string, message: string, meta?: Record<string, unknown>) {
   if (!SCRAPER_DEBUG_ENABLED) {
@@ -28,6 +32,69 @@ function truncateForLog(value: string | null | undefined, limit = 240) {
   }
 
   return value.length > limit ? `${value.slice(0, limit)}...` : value;
+}
+
+function hasScraperApiConfig() {
+  return Boolean(SCRAPER_API_KEY);
+}
+
+type HtmlFetchResult = {
+  ok: boolean;
+  status: number | null;
+  finalUrl: string;
+  html: string | null;
+  contentType: string | null;
+  provider: "direct" | "scraperapi";
+};
+
+async function fetchHtmlDirect(url: string): Promise<HtmlFetchResult> {
+  const response = await fetch(url, {
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+      "cache-control": "no-cache"
+    },
+    cache: "no-store"
+  });
+
+  const html = await response.text();
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    finalUrl: response.url,
+    html,
+    contentType: response.headers.get("content-type"),
+    provider: "direct"
+  };
+}
+
+async function fetchHtmlWithScraperApi(url: string): Promise<HtmlFetchResult> {
+  const requestUrl = new URL(SCRAPER_API_ENDPOINT);
+  requestUrl.searchParams.set("api_key", SCRAPER_API_KEY);
+  requestUrl.searchParams.set("url", url);
+  requestUrl.searchParams.set("render", String(SCRAPER_API_RENDER));
+  requestUrl.searchParams.set("country_code", SCRAPER_API_COUNTRY_CODE);
+
+  const response = await fetch(requestUrl, {
+    headers: {
+      "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+      "cache-control": "no-cache"
+    },
+    cache: "no-store"
+  });
+
+  const html = await response.text();
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    finalUrl: response.url,
+    html,
+    contentType: response.headers.get("content-type"),
+    provider: "scraperapi"
+  };
 }
 
 export function parsePriceText(value: string | null | undefined) {
@@ -153,32 +220,47 @@ export async function fetchHtml(url: string) {
   debugScraperLog("fetch", "request start", { url });
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
-        "cache-control": "no-cache"
-      },
-      cache: "no-store"
-    });
-
-    const html = await response.text();
-
+    const directResult = await fetchHtmlDirect(url);
     debugScraperLog("fetch", "request complete", {
       requestedUrl: url,
-      finalUrl: response.url,
-      status: response.status,
-      ok: response.ok,
-      contentType: response.headers.get("content-type"),
-      bodyPreview: truncateForLog(html)
+      provider: directResult.provider,
+      finalUrl: directResult.finalUrl,
+      status: directResult.status,
+      ok: directResult.ok,
+      contentType: directResult.contentType,
+      bodyPreview: truncateForLog(directResult.html)
     });
 
-    if (!response.ok) {
+    if (directResult.ok) {
+      return directResult.html;
+    }
+
+    if (!hasScraperApiConfig()) {
       return null;
     }
 
-    return html;
+    debugScraperLog("fetch", "fallback to ScraperAPI", {
+      requestedUrl: url,
+      status: directResult.status
+    });
+
+    const scraperApiResult = await fetchHtmlWithScraperApi(url);
+
+    debugScraperLog("fetch", "ScraperAPI response complete", {
+      requestedUrl: url,
+      provider: scraperApiResult.provider,
+      finalUrl: scraperApiResult.finalUrl,
+      status: scraperApiResult.status,
+      ok: scraperApiResult.ok,
+      contentType: scraperApiResult.contentType,
+      bodyPreview: truncateForLog(scraperApiResult.html)
+    });
+
+    if (!scraperApiResult.ok) {
+      return null;
+    }
+
+    return scraperApiResult.html;
   } catch (error) {
     debugScraperLog("fetch", "request failed", {
       url,
@@ -194,24 +276,14 @@ export async function fetchHtmlDebug(
   url: string
 ): Promise<ScraperHtmlDebugResult> {
   try {
-    const response = await fetch(url, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8",
-        "cache-control": "no-cache"
-      },
-      cache: "no-store"
-    });
-
-    const html = await response.text();
+    const response = await fetchHtmlDirect(url);
 
     return {
       label,
       url,
       ok: response.ok,
       status: response.status,
-      html,
+      html: response.html,
       error: null
     };
   } catch (error) {

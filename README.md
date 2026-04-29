@@ -1,53 +1,65 @@
-## Price Ping
+# Price Ping
 
-### 1. 초기 기획
+가격 변동 알림 서비스 - 관심 상품의 가격을 자동으로 추적하고, 설정한 조건에 맞으면 앱/카카오톡으로 바로 알려줍니다.
 
-- **컨셉**
-  - 가격 변동 알림 서비스
-  - 1차 대상: **네이버 스토어** 상품
-  - 사용자는 즐겨찾기(상품 URL 등록)를 통해 관심 상품을 등록
-  - 특정 가격 진입 또는 가격 하락/상승 시 알림 제공
+## 주요 기능
 
-- **알림 채널**
-  - 앱 푸시 알림
-  - 카카오톡 알림 (알림톡/채널 연동)
+- 상품 URL 등록 및 즐겨찾기 관리 (네이버 스토어 중심)
+- 가격 모니터링 및 목표 가격 설정
+- 조건 만족 시 푸시 알림 및 카카오톡 알림 발송
+- 웹/PWA 지원으로 모바일/데스크톱에서 사용 가능
 
-### 2. 필수 요구사항
+## 기술 스택
 
-- **플랫폼**
-  - iPhone / Android 지원 (초기에는 웹 + PWA 중심, 이후 앱 스토어 배포 고려)
-  - 웹 브라우저에서도 사용 가능해야 함
+- **Frontend**: Next.js (React, TypeScript), PWA
+- **Backend**: Supabase (Postgres, Auth, Edge Functions)
+- **크롤링**: Cheerio, Puppeteer (필요 시)
+- **알림**: 브라우저 푸시 API, 카카오 비즈메시지 API
 
-- **핵심 기능**
-  - 사용자 인증 및 계정 관리
-  - 상품 URL 등록(네이버 스토어 중심)
-  - 가격 모니터링 및 조건(목표가, 상승/하락 폭 등) 설정
-  - 조건 만족 시 알림 발송 (앱 푸시, 카카오톡)
+## 설치 및 실행
 
-### 3. 향후 확장 기능
+### 사전 요구사항
 
-- **가격 히스토리 시각화**
-  - 상품별 가격 변동 그래프
-- **지원 쇼핑몰 확장**
-  - 쿠팡, G마켓 등 주요 커머스 채널 추가
+- Node.js 18+
+- Supabase 계정 및 프로젝트 설정
 
-### 4. 기술 스택 (초안)
+### 설치
 
-- **Frontend**
-  - Next.js (React, TypeScript)
-  - PWA 구성으로 모바일/데스크톱 설치형 사용 경험 제공
+```bash
+# 의존성 설치
+npm install
 
-- **Backend / DB**
-  - Supabase (Postgres, Auth, Row Level Security)
-  - Supabase Edge Functions를 활용한 가격 체크/알림 로직
+# 환경 변수 설정 (.env.local)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+KAKAO_CLIENT_ID=your_kakao_client_id
+KAKAO_CLIENT_SECRET=your_kakao_client_secret
+```
 
-- **크롤링 / 가격 수집**
-  - Supabase Edge Functions 내에서
-    - `axios` + `cheerio` (가능한 경우)
-    - 필요 시 `Puppeteer`/`Playwright`로 동적 페이지 처리
+### 실행
 
-- **알림**
-  - 웹: 브라우저 푸시(Push API) + PWA
-  - 카카오톡: 카카오 비즈메시지/채널 API 연동 (Edge Function에서 호출)
+```bash
+# 개발 서버 실행
+npm run dev
 
-> 위 스택과 요구사항은 초기 버전 기준이며, 실제 구현하면서 변경될 수 있습니다.
+# 빌드
+npm run build
+
+# 프로덕션 실행
+npm start
+```
+
+## 문서
+
+- [기획 문서](docs/PLAN.md)
+- [API 스펙](docs/API_SPEC.md)
+- [DB 스키마](docs/DB_SCHEMA.md)
+- [Supabase 설정](docs/SUPABASE_SETUP.md)
+- [카카오 알림 설정](docs/KAKAO_ALERT_SETUP.md)
+- [TestFlight 설정](docs/TESTFLIGHT_SETUP.md)
+- [와이어프레임](docs/WIREFRAMES.md)
+
+## 라이선스
+
+MIT License
